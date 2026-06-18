@@ -337,13 +337,24 @@ def _dispatch_scheduler(state: AgentState) -> dict:
     prompt = SCHEDULER_SYSTEM
     if user_ctx: prompt += f"\n\n{user_ctx}"
     input_msgs = [SystemMessage(content=prompt)]
+    # 传全部对话历史（子Agent需要上下文）
     for m in msgs:
-        if isinstance(m, HumanMessage):
-            input_msgs.append(m); break
-    if not any(isinstance(m, HumanMessage) for m in input_msgs):
-        input_msgs.append(HumanMessage(content="你好"))
+        if isinstance(m, (HumanMessage, AIMessage)):
+            input_msgs.append(m)
 
-    # 防死循环：确认词检测 → 直接代码层调 create_booking，不走 LLM
+    # 防列表死循环：纯数字回复 + AI刚列过仪器 → 替换prompt推进
+    import re as _re2
+    last_human = [m for m in msgs if isinstance(m, HumanMessage)]
+    last_ai = [m for m in msgs if isinstance(m, AIMessage)]
+    prev_listed = last_ai and any(w in (last_ai[-1].content or "") for w in ["回复编号","仪器列表"])
+    if prev_listed and last_human and _re2.match(r'^\s*[1-5①②③④⑤]\s*$', last_human[-1].content.strip()):
+        eq_names = ["透射电镜","ICP-MS","HPC集群","XRD","NMR"]
+        try:
+            idx = int(last_human[-1].content.strip().replace("①","1").replace("②","2").replace("③","3").replace("④","4").replace("⑤","5")) - 1
+            input_msgs[0] = SystemMessage(content=f"用户选择了{idx+1}号：{eq_names[idx]}。只回复：'✅ 已选 {eq_names[idx]}（费用X元/h，最长Xh）。请告诉我日期和时间？' 禁止列清单！")
+        except: pass
+
+    # 防确认死循环：确认词检测 → 直接代码层调 create_booking，不走 LLM
     confirm_words = ["是","对","嗯","好","行","可","确认","yes","ok","确定","可以","要得"]
     last_human = [m for m in msgs if isinstance(m, HumanMessage)]
     is_confirm = last_human and any(w in last_human[-1].content.strip() for w in confirm_words)
@@ -403,12 +414,11 @@ def _dispatch_scheduler(state: AgentState) -> dict:
     return {"scheduler_result": out or "排期专家未返回结果"}
 
 def _dispatch_qa(state: AgentState) -> dict:
-    """调用 QA 子 Agent（MCP 工具优先）"""
+    """调用 QA 子 Agent"""
     msgs = state["messages"]; input_msgs = [SystemMessage(content=QA_SYSTEM)]
     for m in msgs:
-        if isinstance(m, HumanMessage): input_msgs.append(m); break
-    if not any(isinstance(m, HumanMessage) for m in input_msgs):
-        input_msgs.append(HumanMessage(content="你好"))
+        if isinstance(m, (HumanMessage, AIMessage)):
+            input_msgs.append(m)
     agent = _get_subagent("qa")
     result = agent.invoke({"messages": input_msgs, "react_steps": 0})
     out = "";
@@ -419,12 +429,11 @@ def _dispatch_qa(state: AgentState) -> dict:
     return {"qa_result": out or "仪器顾问未返回结果"}
 
 def _dispatch_monitor(state: AgentState) -> dict:
-    """调用 Monitor 子 Agent（MCP 工具优先）"""
+    """调用 Monitor 子 Agent"""
     msgs = state["messages"]; input_msgs = [SystemMessage(content=MONITOR_SYSTEM)]
     for m in msgs:
-        if isinstance(m, HumanMessage): input_msgs.append(m); break
-    if not any(isinstance(m, HumanMessage) for m in input_msgs):
-        input_msgs.append(HumanMessage(content="你好"))
+        if isinstance(m, (HumanMessage, AIMessage)):
+            input_msgs.append(m)
     agent = _get_subagent("monitor")
     result = agent.invoke({"messages": input_msgs, "react_steps": 0})
     out = "";
