@@ -157,11 +157,19 @@ MAX_REACT_STEPS = 8
 
 
 def _get_llm(temperature: float = 0.2):
+    # 兼容 Streamlit Cloud Secrets + 本地 .env
+    api_key = os.getenv("DEEPSEEK_API_KEY", "")
+    base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+    model = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro")
+    if not api_key:
+        try:
+            import streamlit as _st
+            api_key = _st.secrets.get("DEEPSEEK_API_KEY", "")
+            base_url = _st.secrets.get("DEEPSEEK_BASE_URL", base_url)
+            model = _st.secrets.get("DEEPSEEK_MODEL", model)
+        except: pass
     return ChatOpenAI(
-        model=os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro"),
-        api_key=os.getenv("DEEPSEEK_API_KEY", ""),
-        base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
-        temperature=temperature,
+        model=model, api_key=api_key, base_url=base_url, temperature=temperature,
     )
 
 
