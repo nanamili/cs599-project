@@ -383,14 +383,19 @@ def _dispatch_scheduler(state: AgentState) -> dict:
         else:
             dm = _re2.search(r'(\d{4}-\d{2}-\d{2})', user_text)
             target_date = _dt.fromisoformat(dm.group(1)) if dm else today
+        # 判断上下午
+        is_pm = "下午" in user_text or "晚上" in user_text or "傍晚" in user_text
         hour_map = {"零":0,"一":1,"二":2,"三":3,"四":4,"五":5,"六":6,"七":7,"八":8,"九":9,"十":10,"十一":11,"十二":12,"十三":13,"十四":14,"十五":15,"十六":16,"十七":17,"十八":18,"十九":19,"二十":20,"二十一":21,"二十二":22,"二十三":23}
         times = _re2.findall(r'([零一二三四五六七八九十]+)点', user_text)
         if len(times) >= 2:
             sh = hour_map.get(times[0], 9); eh = hour_map.get(times[1], 12)
+            if is_pm: sh += 12; eh += 12
         else:
             shm = _re2.search(r'(\d{1,2})\s*[:：点]', user_text)
             sh = int(shm.group(1)) if shm else 9
+            if is_pm and sh < 12: sh += 12
             ehm = _re2.search(r'到\s*(\d{1,2})', user_text); eh = int(ehm.group(1)) if ehm else sh + 3
+            if is_pm and eh < 12: eh += 12
         dur = eh - sh
         # 从对话历史提取已选仪器
         equip_name = None
@@ -406,8 +411,21 @@ def _dispatch_scheduler(state: AgentState) -> dict:
             if eq2:
                 av = _ca(eq2.id, str(target_date), sh, dur)
                 if av.get("available"):
-                    cost = eq2.hourly_cost * dur
-                    out = f"✅ {eq2.name} {target_date} {sh:02d}:00-{eh:02d}:00 可用。费用：{eq2.hourly_cost}元/h × {dur}h = {cost}元。确认预约吗？"
+                    # 检查用户自身时间冲突
+                    from src.database.models import Booking as _Bk
+                    s3 = _gs2(); user_bks = s3.query(_Bk).filter(
+                        _Bk.user_id == uid, _Bk.booking_date == target_date,
+                        _Bk.status == "已确认", _Bk.equipment_id != eq2.id).all(); s3.close()
+                    user_conflict = False
+                    for ub in user_bks:
+                        ub_e = ub.start_hour + ub.duration_hours
+                        if sh < ub_e and eh > ub.start_hour:
+                            user_conflict = True; break
+                    if user_conflict:
+                        out = f"❌ {target_date} {sh:02d}:00-{eh:02d}:00 不可用：您在该时段已有其他预约，不能同时预约多台仪器"
+                    else:
+                        cost = eq2.hourly_cost * dur
+                        out = f"✅ {eq2.name} {target_date} {sh:02d}:00-{eh:02d}:00 可用。费用：{eq2.hourly_cost}元/h × {dur}h = {cost}元。确认预约吗？"
                 else:
                     out = f"❌ {target_date} {sh:02d}:00-{eh:02d}:00 不可用：{av.get('error','时段冲突')}"
                     from src.tools.booking_tools import suggest_alternatives as _sa
