@@ -363,6 +363,58 @@ def _dispatch_scheduler(state: AgentState) -> dict:
             input_msgs[0] = SystemMessage(content=f"用户选择了{idx+1}号：{eq_names[idx]}。只回复：'✅ 已选 {eq_names[idx]}（费用X元/h，最长Xh）。请告诉我日期和时间？' 禁止列清单！")
         except: pass
 
+    # 防第三步回退：AI问了时间+用户提供了时间 → 代码层调 check_availability
+    prev_asked_time = last_ai and ("日期和时间" in (last_ai[-1].content or "") or "几点" in (last_ai[-1].content or ""))
+    if not prev_listed and prev_asked_time and last_human and len(last_human[-1].content.strip()) > 2:
+        from datetime import date as _dt, timedelta as _td
+        from src.tools.booking_tools import check_availability as _ca
+        user_text = last_human[-1].content.strip(); today = _dt.today()
+        week_map = {"周一":0,"周二":1,"周三":2,"周四":3,"周五":4,"周六":5,"周日":6}
+        wm = _re2.search(r'(下?周[一二三四五六日])', user_text)
+        if wm:
+            target_wd = week_map.get(wm.group(1).replace("下",""), 0)
+            days_ahead = (target_wd - today.weekday()) % 7
+            if days_ahead == 0: days_ahead = 7
+            if "下" in wm.group(1) and days_ahead <= 3: days_ahead += 7
+            target_date = today + _td(days=days_ahead)
+        elif "明天" in user_text: target_date = today + _td(days=1)
+        elif "后天" in user_text: target_date = today + _td(days=2)
+        elif "今天" in user_text: target_date = today
+        else:
+            dm = _re2.search(r'(\d{4}-\d{2}-\d{2})', user_text)
+            target_date = _dt.fromisoformat(dm.group(1)) if dm else today
+        hour_map = {"零":0,"一":1,"二":2,"三":3,"四":4,"五":5,"六":6,"七":7,"八":8,"九":9,"十":10,"十一":11,"十二":12,"十三":13,"十四":14,"十五":15,"十六":16,"十七":17,"十八":18,"十九":19,"二十":20,"二十一":21,"二十二":22,"二十三":23}
+        times = _re2.findall(r'([零一二三四五六七八九十]+)点', user_text)
+        if len(times) >= 2:
+            sh = hour_map.get(times[0], 9); eh = hour_map.get(times[1], 12)
+        else:
+            shm = _re2.search(r'(\d{1,2})\s*[:：点]', user_text)
+            sh = int(shm.group(1)) if shm else 9
+            ehm = _re2.search(r'到\s*(\d{1,2})', user_text); eh = int(ehm.group(1)) if ehm else sh + 3
+        dur = eh - sh + 1
+        # 从对话历史提取已选仪器
+        equip_name = None
+        for m in reversed(msgs):
+            if isinstance(m, AIMessage) and m.content and "已选" in m.content:
+                for en in ["透射电镜","ICP-MS","HPC集群","XRD","NMR","JEM","Agilent","StarCluster","Bruker"]:
+                    if en in m.content: equip_name = en; break
+                if equip_name: break
+        if equip_name:
+            from src.database.db import get_session as _gs2
+            from src.database.models import Equipment as _Eq2
+            s2 = _gs2(); eq2 = s2.query(_Eq2).filter(_Eq2.name.contains(equip_name[:6])).first(); s2.close()
+            if eq2:
+                av = _ca(eq2.id, str(target_date), sh, dur)
+                if av.get("available"):
+                    cost = eq2.hourly_cost * dur
+                    out = f"✅ {eq2.name} {target_date} {sh:02d}:00-{eh:02d}:00 可用。费用：{eq2.hourly_cost}元/h × {dur}h = {cost}元。确认预约吗？"
+                else:
+                    out = f"❌ {target_date} {sh:02d}:00-{eh:02d}:00 不可用：{av.get('error','时段冲突')}"
+                    from src.tools.booking_tools import suggest_alternatives as _sa
+                    alts = _sa(eq2.id, str(target_date), dur)
+                    if alts: out += "\n\n替代方案：\n" + "\n".join(f"· {a.get('equipment_name','')} {a.get('date','')} {a.get('start_hour',''):02d}:00 ({a.get('type','')})" for a in alts[:3])
+                return {"scheduler_result": out}
+
     # 防确认死循环：确认词检测 → 直接代码层调 create_booking，不走 LLM
     confirm_words = ["是","对","嗯","好","行","可","确认","yes","ok","确定","可以","要得"]
     last_human = [m for m in msgs if isinstance(m, HumanMessage)]
@@ -370,28 +422,29 @@ def _dispatch_scheduler(state: AgentState) -> dict:
     prev_asked = any(isinstance(m, AIMessage) and m.content and "确认" in m.content for m in msgs[-4:])
 
     if is_confirm and prev_asked:
-        # 直接解析参数调 create_booking，绕过 LLM
+        # 从 AI 确认消息中提取参数（确认消息最准确，含日期+时间+仪器）
         import re
-        # 只从最新一条用户消息中提取参数
-        latest_human_text = last_human[-1].content if last_human else ""
+        confirm_msg = last_ai[-1].content if last_ai else ""
         all_text = " ".join([m.content for m in msgs if hasattr(m, 'content') and m.content])
-        # 解析日期（优先最新消息）
-        date_m = re.search(r'(\d{4}-\d{2}-\d{2})', latest_human_text) or re.search(r'(\d{4}-\d{2}-\d{2})', all_text)
-        # 解析时段（取每段的开始时间，排除结束时间）
-        slots = re.findall(r'(\d{1,2}):00\s*[-–—]\s*\d{1,2}:00', latest_human_text)
-        if not slots:
-            slots = re.findall(r'(\d{1,2}):00\s*[-–—]\s*\d{1,2}:00', all_text)
-        hours_list = [int(re.match(r'(\d+)', s).group(1)) for s in slots] if slots else []
-        if not hours_list:
-            times = re.findall(r'(\d{1,2}):00', latest_human_text) or re.findall(r'(\d{1,2}):00', all_text)
+        # 日期：从 AI 确认消息提取
+        date_m = re.search(r'(\d{4}-\d{2}-\d{2})', confirm_msg)
+        # 时段：从确认消息提取 "10:00-12:00"
+        slot_m = re.search(r'(\d{1,2}):00\s*[-–—]\s*(\d{1,2}):00', confirm_msg)
+        if slot_m:
+            sh = int(slot_m.group(1)); eh = int(slot_m.group(2))
+            dur = eh - sh + 1  # 中文"十点到十二点"=3时段(10,11,12)
+        else:
+            times = re.findall(r'(\d{1,2}):00', confirm_msg)
             hours_list = [int(t) for t in times]
-        # 解析仪器（优先最新消息）
-        equip_m = re.search(r'(JEM-2100F|Agilent 7900|StarCluster|Bruker D8|Bruker 600MHz)', latest_human_text)
+            sh = min(hours_list) if hours_list else 9
+            dur = (max(hours_list) - min(hours_list) + 1) if hours_list else 2
+        # 仪器
+        equip_m = re.search(r'(JEM-2100F|Agilent 7900|StarCluster|Bruker D8|Bruker 600MHz)', confirm_msg)
         if not equip_m:
             equip_m = re.search(r'(JEM-2100F|Agilent 7900|StarCluster|Bruker D8|Bruker 600MHz)', all_text)
-        # 解析用户ID
+        # 用户ID
         uid_m = re.search(r'ID[：:]\s*(\d+)', all_text)
-        if date_m and hours_list and equip_m:
+        if date_m and equip_m:
             from src.database.db import get_session as _gs
             from src.database.models import Equipment as _Eq
             s = _gs()
@@ -399,9 +452,6 @@ def _dispatch_scheduler(state: AgentState) -> dict:
             s.close()
             if eq:
                 uid = int(uid_m.group(1)) if uid_m else 1
-                # 合并连续时段
-                sh = min(hours_list)
-                dur = max(hours_list) - min(hours_list) + 1
                 from src.tools.booking_tools import create_booking as _cb
                 r = _cb(eq.id, uid, date_m.group(1), sh, dur, "")
                 if r.get("success"):
