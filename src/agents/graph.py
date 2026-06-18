@@ -158,7 +158,7 @@ MAX_REACT_STEPS = 8
 
 def _get_llm(temperature: float = 0.2):
     return ChatOpenAI(
-        model=os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
+        model=os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro"),
         api_key=os.getenv("DEEPSEEK_API_KEY", ""),
         base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
         temperature=temperature,

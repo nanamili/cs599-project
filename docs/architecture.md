@@ -263,7 +263,7 @@ CMD ["streamlit", "run", "src/web/app.py", "--server.address=0.0.0.0"]
 | 层级 | 技术 |
 |:--|:--|
 | AI IDE | VS Code |
-| LLM | DeepSeek-Chat (`deepseek-chat`) |
+| LLM | DeepSeek-V4-Pro (`deepseek-v4-pro`) |
 | Agent 框架 | LangGraph 0.2+ |
 | LLM 接口 | LangChain + OpenAI 兼容 API |
 | RAG | ChromaDB 0.5 + Sentence-Transformers |
