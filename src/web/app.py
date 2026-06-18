@@ -311,7 +311,9 @@ def load_data():
                 "max_hours": e.max_hours_per_booking,
                 "cost": e.hourly_cost, "status": e.status} for e in eqs]
 
-    today = date.today()
+    # 统一用北京时间（云服务器可能是 UTC）
+    import time as _t
+    today = datetime.fromtimestamp(_t.time() + 8*3600).date()
     bks = s.query(Booking).filter(
         Booking.booking_date >= today,
         Booking.booking_date < today + timedelta(days=7)
@@ -385,7 +387,8 @@ def _render_quick_replies(text: str):
 
 def _render_weekly_calendar(bk_list, eq_list):
     """渲染周视图日历：先选仪器 → 显示该仪器预约表 → 点击空格直接预约"""
-    today_date = date.today()
+    import time as _t
+    today_date = datetime.fromtimestamp(_t.time() + 8*3600).date()
     monday = today_date  # 从今天开始
     days_cn_all = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
     days_cn = [days_cn_all[(today_date.weekday() + i) % 7] for i in range(7)]
@@ -844,7 +847,7 @@ def main():
         with col_gantt:
             st.markdown("#### 🗓️ 本周预约甘特图")
             if week_bks:
-                monday_date = date.today()
+                monday_date = datetime.fromtimestamp(_time.time() + 8*3600).date()
                 for b in sorted(week_bks, key=lambda x: (x["date"], x["start"])):
                     day_idx = (datetime.strptime(b["date"], "%Y-%m-%d").date() - monday_date).days
                     if 0 <= day_idx < 7:
