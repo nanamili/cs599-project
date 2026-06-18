@@ -391,7 +391,7 @@ def _dispatch_scheduler(state: AgentState) -> dict:
             shm = _re2.search(r'(\d{1,2})\s*[:：点]', user_text)
             sh = int(shm.group(1)) if shm else 9
             ehm = _re2.search(r'到\s*(\d{1,2})', user_text); eh = int(ehm.group(1)) if ehm else sh + 3
-        dur = eh - sh + 1
+        dur = eh - sh
         # 从对话历史提取已选仪器
         equip_name = None
         for m in reversed(msgs):
@@ -432,7 +432,7 @@ def _dispatch_scheduler(state: AgentState) -> dict:
         slot_m = re.search(r'(\d{1,2}):00\s*[-–—]\s*(\d{1,2}):00', confirm_msg)
         if slot_m:
             sh = int(slot_m.group(1)); eh = int(slot_m.group(2))
-            dur = eh - sh + 1  # 中文"十点到十二点"=3时段(10,11,12)
+            dur = eh - sh
         else:
             times = re.findall(r'(\d{1,2}):00', confirm_msg)
             hours_list = [int(t) for t in times]
