@@ -385,8 +385,8 @@ def _dispatch_scheduler(state: AgentState) -> dict:
             target_date = _dt.fromisoformat(dm.group(1)) if dm else today
         # 判断上下午
         is_pm = "下午" in user_text or "晚上" in user_text or "傍晚" in user_text
-        hour_map = {"零":0,"一":1,"二":2,"三":3,"四":4,"五":5,"六":6,"七":7,"八":8,"九":9,"十":10,"十一":11,"十二":12,"十三":13,"十四":14,"十五":15,"十六":16,"十七":17,"十八":18,"十九":19,"二十":20,"二十一":21,"二十二":22,"二十三":23}
-        times = re.findall(r'([零一二三四五六七八九十]+)点', user_text)
+        hour_map = {"零":0,"一":1,"二":2,"两":2,"三":3,"四":4,"五":5,"六":6,"七":7,"八":8,"九":9,"十":10,"十一":11,"十二":12,"十三":13,"十四":14,"十五":15,"十六":16,"十七":17,"十八":18,"十九":19,"二十":20,"二十一":21,"二十二":22,"二十三":23}
+        times = re.findall(r'([零一两二三四五六七八九十]+)点', user_text)
         if len(times) >= 2:
             sh = hour_map.get(times[0], 9); eh = hour_map.get(times[1], 12)
             if is_pm: sh += 12; eh += 12
