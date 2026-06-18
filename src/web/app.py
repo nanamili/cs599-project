@@ -633,9 +633,10 @@ def main():
         st.divider()
         st.markdown("### 🔬 仪器状态")
 
-        today = date.today()
+        today = date.today(); now_hour = datetime.now().hour
         for e in eq_list:
-            has_active = any(b["eid"] == e["id"] and b["date"] == str(today) and b["status"] == "已确认" for b in bk_list)
+            has_active = any(b["eid"] == e["id"] and b["date"] == str(today) and b["status"] == "已确认"
+                           and b["start"] <= now_hour < b["start"] + b["dur"] for b in bk_list)
             dot = "yellow" if has_active else "green" if e["status"] == "可用" else "gray"
             st.markdown(f"""<div class="eq-card"><span class="dot {dot}"></span><span class="eq-name">{e['name'][:22]}</span><span style="color:#8b949e;font-size:0.7rem;float:right">{'使用中' if has_active else e['status']}</span></div>""", unsafe_allow_html=True)
 
