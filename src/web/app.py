@@ -356,17 +356,30 @@ def _parse_slots_from_response(text: str) -> list:
 
 
 def _render_quick_replies(text: str):
-    """Agent 回复中含可预约时段时，渲染快捷预约按钮"""
+    """Agent 回复时渲染快捷按钮"""
+    # 确认预约场景：显示 确定/再想想
+    if "确认预约" in text:
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("✅ 确定", key="qr_confirm", use_container_width=True, type="primary"):
+                st.session_state.pending_prompt = "确认"
+                st.rerun()
+        with c2:
+            if st.button("🤔 再想想", key="qr_rethink", use_container_width=True):
+                st.session_state.pending_prompt = "我再想想"
+                st.rerun()
+        return
+
+    # 预约时段场景：显示可预约时段按钮
     slots = _parse_slots_from_response(text)
     if not slots: return
-    st.caption("👇 快捷预约 · 点击下方按钮直接预约")
+    st.caption("👇 快捷预约")
     cols = st.columns(min(len(slots), 4))
     for i, s in enumerate(slots):
         with cols[i % 4]:
             if st.button(f"📅 {s['text']}", key=f"qr_{i}_{hash(s['text'])}", use_container_width=True):
                 u = st.session_state.get("current_user", {"id": 1, "name": "张三"})
                 st.session_state.pending_prompt = f"帮我预约{s['date']} {s['start']:02d}:00到{s['end']:02d}:00的仪器，用户{u['name']}(ID:{u['id']})"
-                st.session_state.chat_open = True
                 st.rerun()
 
 
@@ -416,13 +429,14 @@ def _render_weekly_calendar(bk_list, eq_list):
     sel = st.session_state.cal_selected
 
     # Streamlit 按钮日历（支持多选）
-    cols = st.columns([1] + [1]*7)
-    cols[0].caption("时间")
+    cols = st.columns([0.7] + [1]*7)
+    cols[0].button("时间", disabled=True, key="hdr_time", use_container_width=True)
     for d in range(7):
-        cols[d+1].caption(f"{days_cn[d]} {(monday+timedelta(days=d)).strftime('%m/%d')}")
+        dd = (monday+timedelta(days=d)).strftime("%m/%d")
+        cols[d+1].button(f"{days_cn[d]}\n{dd}", disabled=True, key=f"hdr_{d}", use_container_width=True)
     for h in hours:
-        rcols = st.columns([1] + [1]*7)
-        rcols[0].caption(f"{h:02d}:00")
+        rcols = st.columns([0.7] + [1]*7)
+        rcols[0].button(f"{h:02d}:00", disabled=True, key=f"rt_{h}", use_container_width=True)
         for d in range(7):
             key = (d, h)
             sd = str(monday + timedelta(days=d))
@@ -526,8 +540,15 @@ def main():
 
     # 初始化
     try:
+        import sys as _sys
+        print("[LabAgent] 正在初始化...", file=_sys.stderr, flush=True)
         agent, store = init_system()
         eq_list, bk_list, anomalies, stats = load_data()
+        print(f"[LabAgent] 知识库: {store.collection.count()} 文档块", file=_sys.stderr, flush=True)
+        print(f"[LabAgent] 数据库: {len(eq_list)} 台仪器, {len(bk_list)} 条预约", file=_sys.stderr, flush=True)
+        from src.agents.graph import _init_mcp_tools
+        _init_mcp_tools()
+        print("[LabAgent] ✅ 启动完成！访问 http://localhost:8501", file=_sys.stderr, flush=True)
     except Exception as e:
         st.error(f"❌ 初始化失败: {e}"); return
 

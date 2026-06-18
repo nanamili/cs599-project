@@ -94,28 +94,12 @@ class SpecLoader:
 
     # ---- 验证规则 ----
     def validate_booking(self, equipment_id: int, user_cert: int, duration: int) -> Dict[str, Any]:
-        """SDD 驱动的预约验证"""
-        api_spec = self._spec.get("api_spec", {}).get("tools", [])
+        """SDD 驱动的预约验证（配合代码层校验，只检查 Spec 特有规则）"""
         issues = []
-
-        # 从 Spec 检查时长限制
-        for tool in api_spec:
-            if tool.get("name") == "create_booking":
-                params = tool.get("parameters", {})
-                if isinstance(params, dict):
-                    max_hours = params.get("max_hours", 8)
-                    if duration > max_hours:
-                        issues.append(f"时长超过限制 ({duration}h > {max_hours}h)")
-                break
-
-        # 从 Spec 检查证书
-        data_models = self._spec.get("data_models", {})
-        equip_fields = data_models.get("equipment", {}).get("fields", [])
-        for field in equip_fields:
-            if field.get("name") == "requires_cert" and field.get("type") == "bool":
-                issues.append("需要检查证书")
-                break
-
+        # Spec 校验：时长不超过 spec 定义的最大值
+        spec_max_hours = self._spec.get("data_models", {}).get("booking", {}).get("max_hours", 24)
+        if duration > spec_max_hours:
+            issues.append(f"超过 Spec 定义的最大时长 ({duration}h > {spec_max_hours}h)")
         return {
             "valid": len(issues) == 0,
             "issues": issues,
