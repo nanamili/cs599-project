@@ -289,10 +289,12 @@ _mcp_qa_tools = None
 _mcp_monitor_tools = None
 
 def _init_mcp_tools():
-    """尝试通过 MCP 协议加载工具，成功则覆盖内置工具"""
+    """云部署用内置 Function Calling，避免 MCP event loop 冲突"""
     global _mcp_tools_loaded, _mcp_scheduler_tools, _mcp_qa_tools, _mcp_monitor_tools
     if _mcp_tools_loaded: return
     _mcp_tools_loaded = True
+    _mcp_scheduler_tools = None; _mcp_qa_tools = None; _mcp_monitor_tools = None
+    return
     try:
         from src.mcp.mcp_client import init_mcp_sync, get_mcp_bridge
         bridge = init_mcp_sync()
