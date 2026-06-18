@@ -633,7 +633,11 @@ def main():
         st.divider()
         st.markdown("### 🔬 仪器状态")
 
-        today = date.today(); now_hour = datetime.now().hour
+        # 云服务器可能是 UTC，统一用北京时间 (UTC+8)
+        import time as _time
+        cst_offset = 8 * 3600
+        now_cst = datetime.fromtimestamp(_time.time() + cst_offset)
+        today = now_cst.date(); now_hour = now_cst.hour
         for e in eq_list:
             has_active = any(b["eid"] == e["id"] and b["date"] == str(today) and b["status"] == "已确认"
                            and b["start"] <= now_hour < b["start"] + b["dur"] for b in bk_list)
