@@ -289,7 +289,7 @@ _mcp_qa_tools = None
 _mcp_monitor_tools = None
 
 def _init_mcp_tools():
-    """尝试通过 MCP 协议加载工具，成功则覆盖内置工具"""
+    """MCP 工具加载，失败自动回退内置 Function Calling"""
     global _mcp_tools_loaded, _mcp_scheduler_tools, _mcp_qa_tools, _mcp_monitor_tools
     if _mcp_tools_loaded: return
     _mcp_tools_loaded = True
