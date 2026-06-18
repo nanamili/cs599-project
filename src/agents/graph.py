@@ -346,17 +346,17 @@ def _dispatch_scheduler(state: AgentState) -> dict:
     prompt = SCHEDULER_SYSTEM
     if user_ctx: prompt += f"\n\n{user_ctx}"
     input_msgs = [SystemMessage(content=prompt)]
+    import re
     # 传全部对话历史（子Agent需要上下文）
     for m in msgs:
         if isinstance(m, (HumanMessage, AIMessage)):
             input_msgs.append(m)
 
     # 防列表死循环：纯数字回复 + AI刚列过仪器 → 替换prompt推进
-    import re as _re2
     last_human = [m for m in msgs if isinstance(m, HumanMessage)]
     last_ai = [m for m in msgs if isinstance(m, AIMessage)]
     prev_listed = last_ai and any(w in (last_ai[-1].content or "") for w in ["回复编号","仪器列表"])
-    if prev_listed and last_human and _re2.match(r'^\s*[1-5①②③④⑤]\s*$', last_human[-1].content.strip()):
+    if prev_listed and last_human and re.match(r'^\s*[1-5①②③④⑤]\s*$', last_human[-1].content.strip()):
         eq_names = ["透射电镜","ICP-MS","HPC集群","XRD","NMR"]
         try:
             idx = int(last_human[-1].content.strip().replace("①","1").replace("②","2").replace("③","3").replace("④","4").replace("⑤","5")) - 1
@@ -370,7 +370,7 @@ def _dispatch_scheduler(state: AgentState) -> dict:
         from src.tools.booking_tools import check_availability as _ca
         user_text = last_human[-1].content.strip(); today = _dt.today()
         week_map = {"周一":0,"周二":1,"周三":2,"周四":3,"周五":4,"周六":5,"周日":6}
-        wm = _re2.search(r'(下?周[一二三四五六日])', user_text)
+        wm = re.search(r'(下?周[一二三四五六日])', user_text)
         if wm:
             target_wd = week_map.get(wm.group(1).replace("下",""), 0)
             days_ahead = (target_wd - today.weekday()) % 7
@@ -381,20 +381,20 @@ def _dispatch_scheduler(state: AgentState) -> dict:
         elif "后天" in user_text: target_date = today + _td(days=2)
         elif "今天" in user_text: target_date = today
         else:
-            dm = _re2.search(r'(\d{4}-\d{2}-\d{2})', user_text)
+            dm = re.search(r'(\d{4}-\d{2}-\d{2})', user_text)
             target_date = _dt.fromisoformat(dm.group(1)) if dm else today
         # 判断上下午
         is_pm = "下午" in user_text or "晚上" in user_text or "傍晚" in user_text
         hour_map = {"零":0,"一":1,"二":2,"三":3,"四":4,"五":5,"六":6,"七":7,"八":8,"九":9,"十":10,"十一":11,"十二":12,"十三":13,"十四":14,"十五":15,"十六":16,"十七":17,"十八":18,"十九":19,"二十":20,"二十一":21,"二十二":22,"二十三":23}
-        times = _re2.findall(r'([零一二三四五六七八九十]+)点', user_text)
+        times = re.findall(r'([零一二三四五六七八九十]+)点', user_text)
         if len(times) >= 2:
             sh = hour_map.get(times[0], 9); eh = hour_map.get(times[1], 12)
             if is_pm: sh += 12; eh += 12
         else:
-            shm = _re2.search(r'(\d{1,2})\s*[:：点]', user_text)
+            shm = re.search(r'(\d{1,2})\s*[:：点]', user_text)
             sh = int(shm.group(1)) if shm else 9
             if is_pm and sh < 12: sh += 12
-            ehm = _re2.search(r'到\s*(\d{1,2})', user_text); eh = int(ehm.group(1)) if ehm else sh + 3
+            ehm = re.search(r'到\s*(\d{1,2})', user_text); eh = int(ehm.group(1)) if ehm else sh + 3
             if is_pm and eh < 12: eh += 12
         dur = eh - sh
         # 从对话历史提取已选仪器
@@ -413,7 +413,7 @@ def _dispatch_scheduler(state: AgentState) -> dict:
                 if av.get("available"):
                     # 从用户上下文解析 uid
                     uid = 1
-                    uid_m2 = _re2.search(r'ID[：:]\s*(\d+)', user_ctx) if user_ctx else None
+                    uid_m2 = re.search(r'ID[：:]\s*(\d+)', user_ctx) if user_ctx else None
                     if uid_m2: uid = int(uid_m2.group(1))
                     # 检查用户自身时间冲突
                     from src.database.models import Booking as _Bk
