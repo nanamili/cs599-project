@@ -114,19 +114,26 @@ class MCPToolBridge:
             # 使用闭包捕获 name
             def make_tool_func(tool_name):
                 def tool_func(**kwargs) -> str:
-                    """MCP tool wrapper - 处理 event loop 冲突"""
-                    try:
-                        loop = asyncio.get_running_loop()
-                    except RuntimeError:
-                        loop = None
-                    if loop and loop.is_running():
-                        # 已有运行中的 event loop，用线程池执行
-                        import concurrent.futures
-                        with concurrent.futures.ThreadPoolExecutor() as pool:
-                            future = pool.submit(lambda: asyncio.run(self.call_tool(tool_name, kwargs)))
-                            return future.result(timeout=60)
-                    else:
-                        return asyncio.run(self.call_tool(tool_name, kwargs))
+                    """MCP tool wrapper - 同步执行异步调用"""
+                    import concurrent.futures
+                    import threading
+                    result_container = []
+
+                    def _run_in_thread():
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        try:
+                            result = loop.run_until_complete(self.call_tool(tool_name, kwargs))
+                            result_container.append(result)
+                        finally:
+                            loop.close()
+
+                    t = threading.Thread(target=_run_in_thread)
+                    t.start()
+                    t.join(timeout=60)
+                    if result_container:
+                        return result_container[0]
+                    return json.dumps({"error": "MCP tool call timeout"})
 
                 return tool_func
 
