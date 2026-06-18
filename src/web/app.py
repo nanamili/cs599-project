@@ -807,7 +807,9 @@ def main():
                     if 0 <= day_idx < 7:
                         bar = "█" * b["dur"]
                         icon = {"已确认":"📌","已完成":"✅","爽约":"❌"}.get(b["status"],"❓")
-                        st.write(f"{icon} D+{day_idx} {b['start']:02d}:00 `{bar}` {b['start']+b['dur']:02d}:00 — *{b['ename']}* ({b['uname']})")
+                        day_label = (monday_date + timedelta(days=day_idx)).strftime("%m/%d")
+                        wd = ["周一","周二","周三","周四","周五","周六","周日"][(monday_date + timedelta(days=day_idx)).weekday()]
+                        st.write(f"{icon} {wd} {day_label} {b['start']:02d}:00 `{bar}` {b['start']+b['dur']:02d}:00 — *{b['ename']}* ({b['uname']})")
             else:
                 st.markdown('<div class="empty-state"><div class="icon">📭</div>本周暂无预约记录</div>', unsafe_allow_html=True)
 
