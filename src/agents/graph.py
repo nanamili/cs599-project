@@ -365,6 +365,8 @@ def _dispatch_scheduler(state: AgentState) -> dict:
 
     # 防第三步回退：AI问了时间+用户提供了时间 → 代码层调 check_availability
     prev_asked_time = last_ai and ("日期和时间" in (last_ai[-1].content or "") or "几点" in (last_ai[-1].content or ""))
+    import sys as _sys
+    print(f"[STEP3] prev_listed={prev_listed} prev_asked_time={prev_asked_time} last_human={last_human[-1].content[:30] if last_human else 'N/A'} last_ai={last_ai[-1].content[:50] if last_ai else 'N/A'}", file=_sys.stderr, flush=True)
     if not prev_listed and prev_asked_time and last_human and len(last_human[-1].content.strip()) > 2:
         from datetime import date as _dt, timedelta as _td
         from src.tools.booking_tools import check_availability as _ca
