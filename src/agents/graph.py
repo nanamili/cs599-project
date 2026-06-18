@@ -1,11 +1,11 @@
 """
-LangGraph 多智能体协作图 v3 — 真正的并行多 Agent
+LangGraph 多智能体协作图 v3 — 多 Agent 独立子图架构
 架构:
-    START → supervisor (意图分类 + 并行派发)
+    START → supervisor (意图分类 + 按需派发)
                 │
         ┌───────┼──────────┐
         ↓       ↓           ↓
-    scheduler  qa        monitor   ← 独立子图，各自 ReAct，并行运行
+    scheduler  qa        monitor   ← 独立子图，按意图路由，各自 ReAct
         │       │           │
         └───────┼──────────┘
                 ↓
@@ -166,7 +166,7 @@ def _get_llm(temperature: float = 0.2):
 
 
 # ============================================
-# 🔀 Supervisor 节点 — 意图分类 + 并行派发
+# 🔀 Supervisor 节点 — 意图分类 + 按需派发
 # ============================================
 
 def supervisor_node(state: AgentState) -> dict:
@@ -454,7 +454,7 @@ def build_graph() -> StateGraph:
 
     w.set_entry_point("supervisor")
 
-    # Supervisor → 各子 Agent（并行）
+    # Supervisor → 各子 Agent（按意图路由）
     w.add_conditional_edges("supervisor", route_to_agents,
         {"scheduler": "scheduler_agent", "qa": "qa_agent", "monitor": "monitor_agent"})
 
