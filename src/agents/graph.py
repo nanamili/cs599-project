@@ -157,7 +157,6 @@ MAX_REACT_STEPS = 8
 
 
 def _get_llm(temperature: float = 0.2):
-    # Streamlit Cloud Secrets 优先，本地 .env 回退
     api_key = ""; base_url = ""; model = ""
     try:
         import streamlit as _st
@@ -171,6 +170,8 @@ def _get_llm(temperature: float = 0.2):
         base_url = os.getenv("DEEPSEEK_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
     if not model:
         model = os.getenv("DEEPSEEK_MODEL", "qwen3-max")
+    if not api_key:
+        raise RuntimeError("未找到 API Key！请在 Streamlit Cloud Secrets 中设置 DEEPSEEK_API_KEY")
     return ChatOpenAI(
         model=model, api_key=api_key, base_url=base_url, temperature=temperature,
     )
