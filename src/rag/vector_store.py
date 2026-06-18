@@ -7,8 +7,10 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
-# ChromaDB 在 Windows 上需要 sqlite3 3.35+，使用兼容模式
+# ChromaDB 跨平台兼容：Windows 需要 sqlite3 3.35+，Linux 需要关闭 Rust 后端
 os.environ.setdefault("CHROMA_SQLITE_VERSION", "3")
+os.environ.setdefault("CHROMA_SEGMENT_PRODUCER_IMPL", "chromadb.segment.impl.vector.local_persistent_hnsw")
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
 
 import chromadb
 from chromadb.config import Settings
