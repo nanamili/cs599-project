@@ -1,0 +1,28 @@
+# ============================================
+# 高校实验室仪器共享预约平台 - Agent 改造
+# CS599 期末大作业
+# ============================================
+
+# --- Agent 框架 ---
+langgraph>=0.2.0
+langchain>=0.3.0
+langchain-openai>=0.2.0
+langchain-community>=0.3.0
+
+# --- 数据库 ---
+sqlalchemy>=2.0
+
+# --- RAG / 向量检索 ---
+chromadb>=0.5.0
+sentence-transformers>=3.0.0
+
+# --- Web UI (Demo) ---
+streamlit>=1.35.0
+
+# --- 工具库 ---
+python-dotenv>=1.0.0
+pyyaml>=6.0
+pydantic>=2.0
+
+# --- Docker 部署 ---
+# (见 Dockerfile)

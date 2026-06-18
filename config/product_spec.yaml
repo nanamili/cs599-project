@@ -1,0 +1,195 @@
+# ============================================
+# 产品规格文档 (Product Spec)
+# 高校实验室仪器共享预约平台 - Agent 智能化改造
+# ============================================
+
+product:
+  name: "LabAgent - 智能实验室仪器共享预约平台"
+  version: "2.0.0"
+  description: >
+    在原有仪器预约管理系统基础上，引入多智能体协作架构，
+    实现智能排期调度、仪器SOP知识问答、使用异常监控三大核心能力。
+
+# ============================================
+# 一、原始系统分析（改造前）
+# ============================================
+original_system:
+  name: "LabBooking v1.0"
+  description: "基础实验室仪器预约管理系统"
+  pain_points:
+    - id: P1
+      name: "人工排期冲突频发"
+      detail: >
+        热门仪器（电镜、质谱）每周收到20+预约申请，管理员需要手动协调时间冲突。
+        通常一轮协调需要来回3-5封邮件，耗时2-3天。
+      severity: "high"
+      affected_users: "全体师生"
+
+    - id: P2
+      name: "仪器使用门槛高"
+      detail: >
+        每台精密仪器有数十页SOP文档，新用户需要反复查阅。
+        常见操作问题占管理员咨询量的60%以上。
+      severity: "high"
+      affected_users: "新用户、跨专业用户"
+
+    - id: P3
+      name: "违规使用难发现"
+      detail: >
+        用户预约后未按时使用（爽约）、超时使用、未持证操作高级仪器。
+        管理员无法实时监控，每月平均发生5-8起违规事件。
+      severity: "medium"
+      affected_users: "管理员"
+
+# ============================================
+# 二、Agent 改造方案（改造后）
+# ============================================
+agent_transformation:
+  overview: >
+    在原有预约系统基础上，引入基于 LangGraph 的多智能体协作架构。
+    Supervisor Agent 接收用户自然语言请求，分发给三个专业 Worker Agent：
+    排期助手（Scheduler）、仪器顾问（QA）、监控哨兵（Monitor）。
+
+  agents:
+    - id: supervisor
+      name: "管家 Agent (Supervisor)"
+      role: "意图识别、任务分发、结果整合"
+      llm: "DeepSeek-Chat"
+      framework: "LangGraph StateGraph"
+
+    - id: scheduler
+      name: "排期助手 (Scheduler Agent)"
+      role: "智能排期、冲突检测、替代方案推荐"
+      tools:
+        - "check_availability"
+        - "create_booking"
+        - "detect_conflict"
+        - "suggest_alternatives"
+
+    - id: qa
+      name: "仪器顾问 (QA Agent)"
+      role: "SOP知识问答、操作指导、参考资料引用"
+      tools:
+        - "search_sop"
+        - "get_equipment_detail"
+      knowledge_base: "RAG (ChromaDB + SOP文档)"
+
+    - id: monitor
+      name: "监控哨兵 (Monitor Agent)"
+      role: "异常检测、违规预警、使用统计"
+      tools:
+        - "check_anomalies"
+        - "generate_usage_stats"
+
+  workflow: >
+    User → Supervisor (意图分类) →
+      ├── "预约/排期" → Scheduler Agent
+      ├── "问题/如何" → QA Agent (RAG)
+      ├── "检查/报告" → Monitor Agent
+      └── "综合请求" → 多Agent协作
+
+# ============================================
+# 三、API 规格 (API Spec)
+# ============================================
+api_spec:
+  tools:
+    - name: "get_equipment_list"
+      description: "获取所有仪器的列表"
+      parameters:
+        category: "可选，按类别过滤 (microscope/spectrometer/compute)"
+      returns: "List[Equipment]"
+
+    - name: "get_equipment_detail"
+      description: "获取指定仪器的详细信息"
+      parameters:
+        equipment_id: "仪器ID"
+      returns: "EquipmentDetail"
+
+    - name: "check_availability"
+      description: "检查指定仪器在目标时间段的可用性"
+      parameters:
+        equipment_id: "仪器ID"
+        date: "日期 (YYYY-MM-DD)"
+        start_hour: "开始小时 (0-23)"
+        duration_hours: "时长（小时）"
+      returns: "AvailabilityResult"
+
+    - name: "create_booking"
+      description: "创建仪器预约（含冲突检测）"
+      parameters:
+        equipment_id: "仪器ID"
+        user_id: "用户ID"
+        date: "日期"
+        start_hour: "开始时间"
+        duration_hours: "时长"
+        purpose: "使用目的"
+      returns: "BookingResult"
+
+    - name: "detect_conflict"
+      description: "检测目标时间段是否存在冲突"
+      parameters:
+        equipment_id: "仪器ID"
+        date: "日期"
+        start_hour: "开始时间"
+        duration_hours: "时长"
+      returns: "ConflictReport"
+
+    - name: "suggest_alternatives"
+      description: "当存在冲突时，推荐替代时间段或替代仪器"
+      parameters:
+        equipment_id: "首选仪器ID"
+        date: "日期"
+        duration_hours: "时长"
+      returns: "List[Alternative]"
+
+    - name: "search_sop"
+      description: "在SOP知识库中检索相关内容（RAG）"
+      parameters:
+        query: "检索查询（自然语言）"
+        top_k: "返回结果数，默认3"
+      returns: "List[SOPChunk]"
+
+    - name: "check_anomalies"
+      description: "检查系统中的异常情况（爽约、超时、未持证）"
+      parameters:
+        days: "检查最近N天，默认7"
+      returns: "List[Anomaly]"
+
+    - name: "generate_usage_stats"
+      description: "生成仪器使用统计报告"
+      parameters:
+        equipment_id: "仪器ID（可选，为空则全部）"
+        days: "统计最近N天"
+      returns: "UsageReport"
+
+# ============================================
+# 四、数据模型
+# ============================================
+data_models:
+  equipment:
+    fields:
+      - { name: "id", type: "int", desc: "仪器ID" }
+      - { name: "name", type: "str", desc: "仪器名称" }
+      - { name: "category", type: "str", desc: "类别：显微镜/光谱仪/计算资源/其他" }
+      - { name: "location", type: "str", desc: "所在实验室" }
+      - { name: "requires_cert", type: "bool", desc: "是否需要操作证书" }
+      - { name: "max_hours_per_booking", type: "int", desc: "单次最长预约时长" }
+      - { name: "status", type: "str", desc: "状态：可用/维护中/报废" }
+
+  booking:
+    fields:
+      - { name: "id", type: "int", desc: "预约ID" }
+      - { name: "equipment_id", type: "int", desc: "仪器ID" }
+      - { name: "user_id", type: "int", desc: "用户ID" }
+      - { name: "date", type: "date", desc: "预约日期" }
+      - { name: "start_hour", type: "int", desc: "开始时间" }
+      - { name: "duration_hours", type: "int", desc: "时长" }
+      - { name: "purpose", type: "str", desc: "使用目的" }
+      - { name: "status", type: "str", desc: "状态：已确认/已完成/已取消/爽约" }
+
+  user:
+    fields:
+      - { name: "id", type: "int", desc: "用户ID" }
+      - { name: "name", type: "str", desc: "姓名" }
+      - { name: "role", type: "str", desc: "角色：学生/教师/管理员" }
+      - { name: "cert_level", type: "int", desc: "证书等级 0=无 1=初级 2=高级" }
