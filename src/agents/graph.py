@@ -289,27 +289,10 @@ _mcp_qa_tools = None
 _mcp_monitor_tools = None
 
 def _init_mcp_tools():
-    """尝试通过 MCP 协议加载工具，成功则覆盖内置工具"""
+    """MCP 本地验证通过，云部署走内置 Function Calling"""
     global _mcp_tools_loaded, _mcp_scheduler_tools, _mcp_qa_tools, _mcp_monitor_tools
-    if _mcp_tools_loaded: return
-    _mcp_tools_loaded = True
-    try:
-        from src.mcp.mcp_client import init_mcp_sync, get_mcp_bridge
-        bridge = init_mcp_sync()
-        if bridge and bridge.is_connected:
-            all_mcp = bridge.get_tools_as_langchain()
-            if all_mcp:
-                s_names = {t.name.replace('tool_','') for t in SCHEDULER_TOOLS}
-                q_names = {t.name.replace('tool_','') for t in QA_TOOLS}
-                m_names = {t.name.replace('tool_','') for t in MONITOR_TOOLS}
-                _mcp_scheduler_tools = [t for t in all_mcp if t.name in s_names]
-                _mcp_qa_tools = [t for t in all_mcp if t.name in q_names]
-                _mcp_monitor_tools = [t for t in all_mcp if t.name in m_names]
-                print(f"[MCP] Agent runtime connected via MCP: {len(all_mcp)} tools", file=sys.stderr)
-                return
-    except Exception as e:
-        print(f"[MCP] Fallback to Function Calling: {e}", file=sys.stderr)
     _mcp_scheduler_tools = None; _mcp_qa_tools = None; _mcp_monitor_tools = None
+    _mcp_tools_loaded = True
 
 def _get_agent_tools(agent_type: str):
     """获取指定 Agent 的工具（MCP 优先，内置回退）"""
