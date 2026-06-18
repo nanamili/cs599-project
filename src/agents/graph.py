@@ -411,6 +411,10 @@ def _dispatch_scheduler(state: AgentState) -> dict:
             if eq2:
                 av = _ca(eq2.id, str(target_date), sh, dur)
                 if av.get("available"):
+                    # 从用户上下文解析 uid
+                    uid = 1
+                    uid_m2 = _re2.search(r'ID[：:]\s*(\d+)', user_ctx) if user_ctx else None
+                    if uid_m2: uid = int(uid_m2.group(1))
                     # 检查用户自身时间冲突
                     from src.database.models import Booking as _Bk
                     s3 = _gs2(); user_bks = s3.query(_Bk).filter(
