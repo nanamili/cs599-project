@@ -499,6 +499,41 @@ def _render_weekly_calendar(bk_list, eq_list):
             sel.clear(); st.rerun()
 
 
+def _render_my_timeline():
+    """渲染当前用户跨仪器预约时间线"""
+    u = st.session_state.get("current_user", {"name": "张三", "id": 1})
+    from src.database.db import get_session
+    from src.database.models import Booking
+    from collections import defaultdict
+    s = get_session()
+    my_bks = s.query(Booking).filter(Booking.user_id == u["id"]).order_by(Booking.booking_date, Booking.start_hour).all()
+    if my_bks:
+        by_date = defaultdict(list)
+        for b in my_bks:
+            by_date[str(b.booking_date)].append(b)
+        st.caption(f"共 {len(my_bks)} 条预约")
+        for dt_str, bks in sorted(by_date.items()):
+            dt = datetime.strptime(dt_str, "%Y-%m-%d")
+            wd = ["周一","周二","周三","周四","周五","周六","周日"][dt.weekday()]
+            st.markdown(f"**{dt_str} {wd}**")
+            for b in bks:
+                icon = {"已确认": "📌", "已完成": "✅", "爽约": "❌", "已取消": "🗑️"}.get(b.status, "❓")
+                bar = "█" * min(b.duration_hours, 12)
+                cols = st.columns([6, 1])
+                with cols[0]:
+                    st.write(f"{icon} {b.start_hour:02d}:00 `{bar}` {b.start_hour+b.duration_hours:02d}:00 · {b.equipment.name if b.equipment else '?'} · _{b.status}_")
+                with cols[1]:
+                    if b.status == "已确认":
+                        if st.button("取消", key=f"mtl_cancel_{b.id}", use_container_width=True):
+                            from src.tools.booking_tools import cancel_booking
+                            r = cancel_booking(b.id)
+                            if r.get("success"): st.cache_data.clear(); st.rerun()
+                            else: st.error(r.get("message"))
+    else:
+        st.info("暂无预约记录")
+    s.close()
+
+
 def kpi_row(items):
     """items: [(value, label, color), ...]"""
     c = st.columns(len(items))
@@ -753,9 +788,12 @@ def main():
             (str(sum(1 for b in week_bks if b["status"]=="爽约")), "爽约", "red"),
         ])
 
-        # 拖拽式周历
-        st.markdown("#### 📆 本周预约日历（点击空格直接预约）")
-        _render_weekly_calendar(bk_list, eq_list)
+        # 日历视图切换
+        cal_tab1, cal_tab2 = st.tabs(["📆 仪器预约日历", "📋 我的全部预约"])
+        with cal_tab1:
+            _render_weekly_calendar(bk_list, eq_list)
+        with cal_tab2:
+            _render_my_timeline()
 
         # 内联 AI 对话（日历触发）
         cbook = st.session_state.pop("cal_booking", None)
@@ -813,42 +851,6 @@ def main():
             else:
                 st.markdown('<div class="empty-state"><div class="icon">📭</div>本周暂无预约记录</div>', unsafe_allow_html=True)
 
-            # 我的预约时间线
-            st.divider()
-            st.markdown("#### 📋 我的全部预约（跨仪器时间线）")
-            u = st.session_state.get("current_user", {"name": "张三", "id": 1})
-            from src.database.db import get_session
-            from src.database.models import Booking
-            from collections import defaultdict
-            s = get_session()
-            my_bks = s.query(Booking).filter(Booking.user_id == u["id"]).order_by(Booking.booking_date, Booking.start_hour).all()
-            if my_bks:
-                # 按日期分组
-                by_date = defaultdict(list)
-                for b in my_bks:
-                    by_date[str(b.booking_date)].append(b)
-                for dt_str, bks in sorted(by_date.items()):
-                    dt = datetime.strptime(dt_str, "%Y-%m-%d")
-                    wd = ["周一","周二","周三","周四","周五","周六","周日"][dt.weekday()]
-                    st.caption(f"**{dt_str} {wd}**")
-                    for b in bks:
-                        icon = {"已确认": "📌", "已完成": "✅", "爽约": "❌", "已取消": "🗑️"}.get(b.status, "❓")
-                        bar = "█" * b.duration_hours
-                        cols = st.columns([5, 1])
-                        with cols[0]:
-                            st.write(f"{icon} {b.start_hour:02d}:00 `{bar}` {b.start_hour+b.duration_hours:02d}:00 · {b.equipment.name if b.equipment else '?'} · _{b.status}_")
-                        with cols[1]:
-                            if b.status == "已确认":
-                                if st.button("取消", key=f"cancel_bk_{b.id}", use_container_width=True):
-                                    from src.tools.booking_tools import cancel_booking
-                                    result = cancel_booking(b.id)
-                                    if result.get("success"):
-                                        st.cache_data.clear(); st.rerun()
-                                    else:
-                                        st.error(result.get("message", "取消失败"))
-            else:
-                st.caption("暂无预约记录")
-            s.close()
 
         with col_book:
             st.markdown("#### ⚡ 快速预约")
