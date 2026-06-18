@@ -170,10 +170,11 @@ def _get_llm(temperature: float = 0.2):
         base_url = os.getenv("DEEPSEEK_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
     if not model:
         model = os.getenv("DEEPSEEK_MODEL", "qwen3-max")
-    if not api_key:
-        raise RuntimeError("未找到 API Key！请在 Streamlit Cloud Secrets 中设置 DEEPSEEK_API_KEY")
+    # LangChain 空字符串会被忽略，必须注入环境变量
+    if api_key and not os.getenv("OPENAI_API_KEY"):
+        os.environ["OPENAI_API_KEY"] = api_key
     return ChatOpenAI(
-        model=model, api_key=api_key, base_url=base_url, temperature=temperature,
+        model=model, api_key=api_key or "dummy", base_url=base_url, temperature=temperature,
     )
 
 
